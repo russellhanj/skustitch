@@ -147,8 +147,8 @@ else:
     colb1, colb2 = st.columns([1, 1])
 
     def _merge_into_existing(promos: dict, promo_key: str, skus: list):
-        """Merge SKUs into an existing promo. Bonus stays unchanged. No new promos allowed.
-        Returns (promos or None, added_count, skipped_dupes_list)."""
+    """Merge SKUs into an existing promo. Bonus stays unchanged. No new promos allowed.
+    Returns (promos or None, added_count, skipped_dupes_list)."""
     if promo_key not in promos:
         return None, 0, ["Selected promo no longer exists. Reload JSON."]
     promos = {k: {"products": list(v.get("products", [])), "bonus": v.get("bonus", "")}
@@ -158,7 +158,7 @@ else:
     skipped = []
     for s in skus:
         if s in seen:
-            skipped.append(s)        # collect duplicates for feedback
+            skipped.append(s)  # collect duplicates for feedback
         else:
             promos[promo_key]["products"].append(s)
             seen.add(s)
