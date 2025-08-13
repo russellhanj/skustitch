@@ -147,24 +147,24 @@ else:
     colb1, colb2 = st.columns([1, 1])
 
     def _merge_into_existing(promos: dict, promo_key: str, skus: list):
-    """Merge SKUs into an existing promo. Bonus stays unchanged. No new promos allowed.
-    Returns (promos or None, added_count, skipped_dupes_list)."""
-    if promo_key not in promos:
-        return None, 0, ["Selected promo no longer exists. Reload JSON."]
-    
-    promos = {k: {"products": list(v.get("products", [])), "bonus": v.get("bonus", "")}
-              for k, v in promos.items()}
-    seen = set(promos[promo_key]["products"])
-    added = 0
-    skipped = []
-    for s in skus:
-        if s in seen:
-            skipped.append(s)  # collect duplicates for feedback
-        else:
-            promos[promo_key]["products"].append(s)
-            seen.add(s)
-            added += 1
-    return promos, added, skipped
+        """Merge SKUs into an existing promo. Bonus stays unchanged. No new promos allowed.
+        Returns (promos or None, added_count, skipped_dupes_list)."""
+        if promo_key not in promos:
+            return None, 0, ["Selected promo no longer exists. Reload JSON."]
+        
+        promos = {k: {"products": list(v.get("products", [])), "bonus": v.get("bonus", "")}
+                for k, v in promos.items()}
+        seen = set(promos[promo_key]["products"])
+        added = 0
+        skipped = []
+        for s in skus:
+            if s in seen:
+                skipped.append(s)  # collect duplicates for feedback
+            else:
+                promos[promo_key]["products"].append(s)
+                seen.add(s)
+                added += 1
+        return promos, added, skipped
 
 with colb1:
     if st.button("Preview merge", use_container_width=True):
