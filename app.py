@@ -231,7 +231,13 @@ with colb1:
                     details = ", ".join([f"{sku} → {', '.join(promos)}" for sku, promos in skipped_conf.items()])
                     st.warning(f"Skipped (exists in other promo(s)): {details}")
                 st.dataframe(df_prev, use_container_width=True)
-                st.code(_json.dumps(preview_promos, indent=2), language="json")
+                # --- Replace PREVIEW json display ---
+                json_html_preview = f"""
+                <div style="height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
+                <pre style="margin: 0;">{_json.dumps(preview_promos, indent=2)}</pre>
+                </div>
+                """
+                st.markdown(json_html_preview, unsafe_allow_html=True)
 
 with colb2:
     if st.button("Apply merge", type="primary", use_container_width=True):
@@ -259,8 +265,14 @@ with colb2:
                     st.warning(f"Skipped (exists in other promo(s)): {details}")
 
                 st.dataframe(df_merged, use_container_width=True)
-                st.code(_json.dumps(merged_promos, indent=2), language="json")
-
+                # --- Replace APPLY json display ---
+                json_html_apply = f"""
+                <div style="height: 300px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 8px;">
+                <pre style="margin: 0;">{_json.dumps(merged_promos, indent=2)}</pre>
+                </div>
+                """
+                st.markdown(json_html_apply, unsafe_allow_html=True)
+                
                 # Exports (JSON / CSV / TXT)
                 st.subheader("Exports")
 
