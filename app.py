@@ -128,20 +128,54 @@ def _html_escape(s: str) -> str:
     return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 def render_json_with_copy(box_id: str, obj, height: int = 300):
-    """Scrollable JSON box with a 'Copy JSON' button."""
+    """Scrollable JSON box with a 'Copy JSON' button that works in dark & light mode."""
     pretty = _json.dumps(obj, indent=2)
     escaped = _html_escape(pretty)
+
     html = f"""
+    <style>
+    /* Light mode */
+    [data-theme="light"] .json-box {{
+        background: #ffffff;
+        color: #000000;
+    }}
+    [data-theme="light"] .json-header {{
+        background: #f6f6f6;
+        color: #000000;
+    }}
+    [data-theme="light"] .copy-btn {{
+        background: #fff;
+        color: #000;
+        border: 1px solid #ccc;
+    }}
+
+    /* Dark mode */
+    [data-theme="dark"] .json-box {{
+        background: #1e1e1e;
+        color: #d4d4d4;
+    }}
+    [data-theme="dark"] .json-header {{
+        background: #2a2a2a;
+        color: #d4d4d4;
+    }}
+    [data-theme="dark"] .copy-btn {{
+        background: #333;
+        color: #d4d4d4;
+        border: 1px solid #555;
+    }}
+    </style>
+
     <div style="border:1px solid #ddd;border-radius:6px;">
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;background:#f6f6f6;border-bottom:1px solid #e5e5e5;">
+      <div class="json-header" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;">
         <strong>JSON</strong>
         <button
           onclick="navigator.clipboard.writeText(document.getElementById('{box_id}').innerText)"
-          style="padding:6px 10px;border:1px solid #ccc;border-radius:4px;background:#fff;cursor:pointer;"
+          class="copy-btn"
+          style="padding:6px 10px;border-radius:4px;cursor:pointer;"
           title="Copy to clipboard"
         >Copy JSON</button>
       </div>
-      <pre id="{box_id}" style="margin:0; padding:10px; height:{height}px; overflow:auto;">{escaped}</pre>
+      <pre id="{box_id}" class="json-box" style="margin:0; padding:10px; height:{height}px; overflow:auto;">{escaped}</pre>
     </div>
     """
     components.html(html, height=height + 60)
