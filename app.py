@@ -2,7 +2,6 @@ import os
 import streamlit as st
 import json
 import pandas as pd
-import streamlit.components.v1 as components
 
 # --- App settings ---
 APP_NAME = "SKUStitch"
@@ -124,62 +123,6 @@ def _index_all_skus(promos: dict):
             idx.setdefault(s, set()).add(pkey)
     return idx
 
-def _html_escape(s: str) -> str:
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
-def render_json_with_copy(box_id: str, obj, height: int = 300):
-    """Scrollable JSON box with a 'Copy JSON' button that works in dark & light mode."""
-    pretty = _json.dumps(obj, indent=2)
-    escaped = _html_escape(pretty)
-
-    html = f"""
-    <style>
-    /* Light mode */
-    [data-theme="light"] .json-box {{
-        background: #ffffff;
-        color: #000000;
-    }}
-    [data-theme="light"] .json-header {{
-        background: #f6f6f6;
-        color: #000000;
-    }}
-    [data-theme="light"] .copy-btn {{
-        background: #fff;
-        color: #000;
-        border: 1px solid #ccc;
-    }}
-
-    /* Dark mode */
-    [data-theme="dark"] .json-box {{
-        background: #1e1e1e;
-        color: #d4d4d4;
-    }}
-    [data-theme="dark"] .json-header {{
-        background: #2a2a2a;
-        color: #d4d4d4;
-    }}
-    [data-theme="dark"] .copy-btn {{
-        background: #333;
-        color: #d4d4d4;
-        border: 1px solid #555;
-    }}
-    </style>
-
-    <div style="border:1px solid #ddd;border-radius:6px;">
-      <div class="json-header" style="display:flex;justify-content:space-between;align-items:center;padding:6px 8px;border-bottom:1px solid #e5e5e5;">
-        <strong>JSON</strong>
-        <button
-          onclick="navigator.clipboard.writeText(document.getElementById('{box_id}').innerText)"
-          class="copy-btn"
-          style="padding:6px 10px;border-radius:4px;cursor:pointer;"
-          title="Copy to clipboard"
-        >Copy JSON</button>
-      </div>
-      <pre id="{box_id}" class="json-box" style="margin:0; padding:10px; height:{height}px; overflow:auto;">{escaped}</pre>
-    </div>
-    """
-    components.html(html, height=height + 60)
-
 st.subheader("2) Add SKUs to an existing promo")
 
 # Require JSON from Step 1
@@ -288,9 +231,7 @@ with colb1:
                     details = ", ".join([f"{sku} → {', '.join(promos)}" for sku, promos in skipped_conf.items()])
                     st.warning(f"Skipped (exists in other promo(s)): {details}")
                 st.dataframe(df_prev, use_container_width=True)
-
-                # ✅ Scrollable JSON + copy button
-                render_json_with_copy("json_preview_box", preview_promos, height=300)
+                st.code(_json.dumps(preview_promos, indent=2), language="json")
 
 with colb2:
     if st.button("Apply merge", type="primary", use_container_width=True):
@@ -305,6 +246,7 @@ with colb2:
             if merged_promos is None:
                 st.error("Selected promo no longer exists. Reload JSON.")
             else:
+                # Persist merged JSON
                 st.session_state["current_json"] = merged_promos
                 merged_rows = _rows_from_promos(merged_promos)
                 df_merged = pd.DataFrame(merged_rows, columns=["promo_num", "product_sku", "bonus"])
@@ -317,15 +259,31 @@ with colb2:
                     st.warning(f"Skipped (exists in other promo(s)): {details}")
 
                 st.dataframe(df_merged, use_container_width=True)
+                st.code(_json.dumps(merged_promos, indent=2), language="json")
 
-                # ✅ Scrollable JSON + copy button
-                render_json_with_copy("json_apply_box", merged_promos, height=300)
-
-                # Exports...
+                # Exports (JSON / CSV / TXT)
                 st.subheader("Exports")
+
                 json_bytes = _json.dumps(merged_promos, indent=2).encode("utf-8")
-                st.download_button("Download updated JSON", json_bytes, "promos_updated.json", "application/json")
+                st.download_button(
+                    "Download updated JSON",
+                    data=json_bytes,
+                    file_name="promos_updated.json",
+                    mime="application/json"
+                )
+
                 csv_bytes = df_merged.to_csv(index=False).encode("utf-8")
-                st.download_button("Download CSV (promo_num, product_sku, bonus)", csv_bytes, "promo_table.csv", "text/csv")
+                st.download_button(
+                    "Download CSV (promo_num, product_sku, bonus)",
+                    data=csv_bytes,
+                    file_name="promo_table.csv",
+                    mime="text/csv"
+                )
+
                 txt_lines = "\r\n".join([f"\"{sku}\"," for sku in df_merged["product_sku"].tolist()])
-                st.download_button("Download TXT (\"SKU\", per line)", txt_lines.encode("utf-8"), "skus.txt", "text/plain")
+                st.download_button(
+                    "Download TXT (\"SKU\", per line)",
+                    data=txt_lines.encode("utf-8"),
+                    file_name="skus.txt",
+                    mime="text/plain"
+                )
