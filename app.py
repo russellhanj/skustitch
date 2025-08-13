@@ -151,6 +151,7 @@ else:
     Returns (promos or None, added_count, skipped_dupes_list)."""
     if promo_key not in promos:
         return None, 0, ["Selected promo no longer exists. Reload JSON."]
+    
     promos = {k: {"products": list(v.get("products", [])), "bonus": v.get("bonus", "")}
               for k, v in promos.items()}
     seen = set(promos[promo_key]["products"])
