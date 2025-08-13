@@ -203,87 +203,87 @@ def _merge_into_existing(promos: dict, promo_key: str, skus: list):
 
     return promos, added, skipped_dupe_target, skipped_conflicts
 
-        # Actions (only render when promos exist)
-    colb1, colb2 = st.columns([1, 1])
+# Actions (only render when promos exist)
+colb1, colb2 = st.columns([1, 1])
 
-    with colb1:
-        if st.button("Preview merge", use_container_width=True):
-            if not target_promo:
-                st.warning("Select an existing promo.")
-            elif not new_skus:
-                st.warning("Paste at least one SKU to merge.")
+with colb1:
+    if st.button("Preview merge", use_container_width=True):
+        if not target_promo:
+            st.warning("Select an existing promo.")
+        elif not new_skus:
+            st.warning("Paste at least one SKU to merge.")
+        else:
+            preview_promos, added_cnt, skipped_dupe, skipped_conf = _merge_into_existing(
+                promos_dict, target_promo, new_skus
+            )
+            if preview_promos is None:
+                st.error("Selected promo no longer exists. Reload JSON.")
             else:
-                preview_promos, added_cnt, skipped_dupe, skipped_conf = _merge_into_existing(
-                    promos_dict, target_promo, new_skus
+                rows = _rows_from_promos(preview_promos)
+                df_prev = pd.DataFrame(rows, columns=["promo_num", "product_sku", "bonus"])
+                st.success(
+                    f"Preview: will add {added_cnt} SKU(s) to '{target_promo}'. "
+                    f"Total rows after: {len(df_prev)}."
                 )
-                if preview_promos is None:
-                    st.error("Selected promo no longer exists. Reload JSON.")
-                else:
-                    rows = _rows_from_promos(preview_promos)
-                    df_prev = pd.DataFrame(rows, columns=["promo_num", "product_sku", "bonus"])
-                    st.success(
-                        f"Preview: will add {added_cnt} SKU(s) to '{target_promo}'. "
-                        f"Total rows after: {len(df_prev)}."
-                    )
-                    if skipped_dupe:
-                        st.info(f"Skipped (already in '{target_promo}'): {', '.join(skipped_dupe)}")
-                    if skipped_conf:
-                        details = ", ".join([f"{sku} → {', '.join(promos)}" for sku, promos in skipped_conf.items()])
-                        st.warning(f"Skipped (exists in other promo(s)): {details}")
-                    st.dataframe(df_prev, use_container_width=True)
-                    st.code(_json.dumps(preview_promos, indent=2), language="json")
+                if skipped_dupe:
+                    st.info(f"Skipped (already in '{target_promo}'): {', '.join(skipped_dupe)}")
+                if skipped_conf:
+                    details = ", ".join([f"{sku} → {', '.join(promos)}" for sku, promos in skipped_conf.items()])
+                    st.warning(f"Skipped (exists in other promo(s)): {details}")
+                st.dataframe(df_prev, use_container_width=True)
+                st.code(_json.dumps(preview_promos, indent=2), language="json")
 
-    with colb2:
-        if st.button("Apply merge", type="primary", use_container_width=True):
-            if not target_promo:
-                st.warning("Select an existing promo.")
-            elif not new_skus:
-                st.warning("Paste at least one SKU to merge.")
+with colb2:
+    if st.button("Apply merge", type="primary", use_container_width=True):
+        if not target_promo:
+            st.warning("Select an existing promo.")
+        elif not new_skus:
+            st.warning("Paste at least one SKU to merge.")
+        else:
+            merged_promos, added_cnt, skipped_dupe, skipped_conf = _merge_into_existing(
+                promos_dict, target_promo, new_skus
+            )
+            if merged_promos is None:
+                st.error("Selected promo no longer exists. Reload JSON.")
             else:
-                merged_promos, added_cnt, skipped_dupe, skipped_conf = _merge_into_existing(
-                    promos_dict, target_promo, new_skus
+                # Persist merged JSON
+                st.session_state["current_json"] = merged_promos
+                merged_rows = _rows_from_promos(merged_promos)
+                df_merged = pd.DataFrame(merged_rows, columns=["promo_num", "product_sku", "bonus"])
+
+                st.success(f"Merged {added_cnt} SKU(s) into '{target_promo}'. Total rows now: {len(df_merged)}.")
+                if skipped_dupe:
+                    st.info(f"Skipped (already in '{target_promo}'): {', '.join(skipped_dupe)}")
+                if skipped_conf:
+                    details = ", ".join([f"{sku} → {', '.join(promos)}" for sku, promos in skipped_conf.items()])
+                    st.warning(f"Skipped (exists in other promo(s)): {details}")
+
+                st.dataframe(df_merged, use_container_width=True)
+                st.code(_json.dumps(merged_promos, indent=2), language="json")
+
+                # Exports (JSON / CSV / TXT)
+                st.subheader("Exports")
+
+                json_bytes = _json.dumps(merged_promos, indent=2).encode("utf-8")
+                st.download_button(
+                    "Download updated JSON",
+                    data=json_bytes,
+                    file_name="promos_updated.json",
+                    mime="application/json"
                 )
-                if merged_promos is None:
-                    st.error("Selected promo no longer exists. Reload JSON.")
-                else:
-                    # Persist merged JSON
-                    st.session_state["current_json"] = merged_promos
-                    merged_rows = _rows_from_promos(merged_promos)
-                    df_merged = pd.DataFrame(merged_rows, columns=["promo_num", "product_sku", "bonus"])
 
-                    st.success(f"Merged {added_cnt} SKU(s) into '{target_promo}'. Total rows now: {len(df_merged)}.")
-                    if skipped_dupe:
-                        st.info(f"Skipped (already in '{target_promo}'): {', '.join(skipped_dupe)}")
-                    if skipped_conf:
-                        details = ", ".join([f"{sku} → {', '.join(promos)}" for sku, promos in skipped_conf.items()])
-                        st.warning(f"Skipped (exists in other promo(s)): {details}")
+                csv_bytes = df_merged.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    "Download CSV (promo_num, product_sku, bonus)",
+                    data=csv_bytes,
+                    file_name="promo_table.csv",
+                    mime="text/csv"
+                )
 
-                    st.dataframe(df_merged, use_container_width=True)
-                    st.code(_json.dumps(merged_promos, indent=2), language="json")
-
-                    # Exports (JSON / CSV / TXT)
-                    st.subheader("Exports")
-
-                    json_bytes = _json.dumps(merged_promos, indent=2).encode("utf-8")
-                    st.download_button(
-                        "Download updated JSON",
-                        data=json_bytes,
-                        file_name="promos_updated.json",
-                        mime="application/json"
-                    )
-
-                    csv_bytes = df_merged.to_csv(index=False).encode("utf-8")
-                    st.download_button(
-                        "Download CSV (promo_num, product_sku, bonus)",
-                        data=csv_bytes,
-                        file_name="promo_table.csv",
-                        mime="text/csv"
-                    )
-
-                    txt_lines = "\r\n".join([f"\"{sku}\"," for sku in df_merged["product_sku"].tolist()])
-                    st.download_button(
-                        "Download TXT (\"SKU\", per line)",
-                        data=txt_lines.encode("utf-8"),
-                        file_name="skus.txt",
-                        mime="text/plain"
-                    )
+                txt_lines = "\r\n".join([f"\"{sku}\"," for sku in df_merged["product_sku"].tolist()])
+                st.download_button(
+                    "Download TXT (\"SKU\", per line)",
+                    data=txt_lines.encode("utf-8"),
+                    file_name="skus.txt",
+                    mime="text/plain"
+                )
