@@ -69,3 +69,165 @@ if json_text.strip():
 else:
     st.info("Paste your promo JSON above to see it as a table.")
 
+# -----------------------------
+# Step 2: Add SKUs & merge into a promo
+# -----------------------------
+
+import io
+import json as _json  # alias just to avoid name shadowing below
+
+def _normalize_skus(raw: str):
+    """Accept comma/newline separated SKUs, strip quotes/spaces, dedupe (order preserved)."""
+    if not raw:
+        return []
+    parts = raw.replace("\r", "").replace("\n", ",").split(",")
+    cleaned, seen = [], set()
+    for p in parts:
+        s = p.strip().strip('"').replace(" ", "")
+        if s and s not in seen:
+            cleaned.append(s)
+            seen.add(s)
+    return cleaned
+
+def _ensure_promos_dict(data: dict):
+    """Return a dict like {promo_key: {'products':[...], 'bonus': '...'}} from the parsed JSON."""
+    promos = {}
+    if isinstance(data, dict):
+        for k, v in data.items():
+            if isinstance(v, dict):
+                products = v.get("products", []) or []
+                bonus = v.get("bonus", "")
+                promos[str(k)] = {
+                    "products": [str(x) for x in products if str(x).strip()],
+                    "bonus": str(bonus) if bonus is not None else ""
+                }
+    return promos
+
+def _rows_from_promos(promos: dict):
+    rows = []
+    for promo_key, payload in promos.items():
+        bonus = payload.get("bonus", "")
+        for sku in payload.get("products", []):
+            rows.append({
+                "promo_num": promo_key,
+                "product_sku": sku,
+                "bonus": bonus
+            })
+    return rows
+
+st.subheader("2) Add SKUs and select promo")
+
+# Get current JSON from step 1 (or empty)
+current_json = st.session_state.get("current_json", {}) if isinstance(st.session_state.get("current_json", {}), dict) else {}
+promos_dict = _ensure_promos_dict(current_json)
+
+# SKU input (comma or newline)
+sku_text = st.text_area(
+    "Paste SKUs (comma or newline separated; quotes/spaces OK)",
+    height=140,
+    placeholder='225805, 225807\n225808'
+)
+new_skus = _normalize_skus(sku_text)
+
+# Promo selection
+existing_promos = sorted(promos_dict.keys())
+colp1, colp2 = st.columns([1, 1])
+with colp1:
+    promo_choice = st.selectbox(
+        "Pick an existing promo (or leave blank to create new):",
+        ["(none)"] + existing_promos,
+        index=0
+    )
+with colp2:
+    promo_new = st.text_input("Or type a NEW promo code", placeholder="e.g., promo4")
+
+# Determine target promo key
+target_promo = None
+if promo_choice != "(none)":
+    target_promo = promo_choice
+elif promo_new.strip():
+    target_promo = promo_new.strip()
+
+# Bonus handling: prefill from selected promo (if exists), but allow editing
+default_bonus = promos_dict.get(target_promo, {}).get("bonus", "") if target_promo in promos_dict else ""
+bonus_val = st.text_input("Bonus (optional)", value=default_bonus)
+
+# Actions: Preview & Merge
+colb1, colb2 = st.columns([1, 1])
+
+def _merge_into(promos: dict, promo_key: str, skus: list, bonus: str):
+    """Merge SKUs into the given promo, deduping and preserving order. Keep/overwrite bonus if provided."""
+    promos = {k: {"products": list(v.get("products", [])), "bonus": v.get("bonus", "")} for k, v in promos.items()}
+    if promo_key not in promos:
+        promos[promo_key] = {"products": [], "bonus": ""}
+    # Merge SKUs
+    seen = set(promos[promo_key]["products"])
+    for s in skus:
+        if s not in seen:
+            promos[promo_key]["products"].append(s)
+            seen.add(s)
+    # Update bonus if user provided any text (including empty to clear)
+    promos[promo_key]["bonus"] = bonus if bonus is not None else promos[promo_key]["bonus"]
+    return promos
+
+with colb1:
+    if st.button("Preview merge", use_container_width=True):
+        if not target_promo:
+            st.warning("Select an existing promo or type a new promo code.")
+        elif not new_skus:
+            st.warning("Paste at least one SKU to merge.")
+        else:
+            preview_promos = _merge_into(promos_dict, target_promo, new_skus, bonus_val)
+            rows = _rows_from_promos(preview_promos)
+            df_prev = pd.DataFrame(rows, columns=["promo_num", "product_sku", "bonus"])
+            st.success(f"Preview: Will have {len(df_prev)} rows across {df_prev['promo_num'].nunique()} promos.")
+            st.dataframe(df_prev, use_container_width=True)
+            st.code(_json.dumps(preview_promos, indent=2), language="json")
+
+with colb2:
+    if st.button("Apply merge", type="primary", use_container_width=True):
+        if not target_promo:
+            st.warning("Select an existing promo or type a new promo code.")
+        elif not new_skus:
+            st.warning("Paste at least one SKU to merge.")
+        else:
+            merged_promos = _merge_into(promos_dict, target_promo, new_skus, bonus_val)
+            # Persist and show
+            st.session_state["current_json"] = merged_promos
+            merged_rows = _rows_from_promos(merged_promos)
+            df_merged = pd.DataFrame(merged_rows, columns=["promo_num", "product_sku", "bonus"])
+            st.success(f"Merged {len(new_skus)} SKU(s) into '{target_promo}'. Total rows now: {len(df_merged)}.")
+            st.dataframe(df_merged, use_container_width=True)
+            st.code(_json.dumps(merged_promos, indent=2), language="json")
+
+            # -----------------------------
+            # Exports (JSON / CSV / TXT)
+            # -----------------------------
+            st.subheader("Exports")
+
+            # JSON download
+            json_bytes = _json.dumps(merged_promos, indent=2).encode("utf-8")
+            st.download_button(
+                "Download updated JSON",
+                data=json_bytes,
+                file_name="promos_updated.json",
+                mime="application/json"
+            )
+
+            # CSV download (row-per-SKU)
+            csv_bytes = df_merged.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                "Download CSV (promo_num, product_sku, bonus)",
+                data=csv_bytes,
+                file_name="promo_table.csv",
+                mime="text/csv"
+            )
+
+            # TXT download: "SKU", per line with CRLF
+            txt_lines = "\r\n".join([f"\"{sku}\"," for sku in df_merged["product_sku"].tolist()])
+            st.download_button(
+                "Download TXT (\"SKU\", per line)",
+                data=txt_lines.encode("utf-8"),
+                file_name="skus.txt",
+                mime="text/plain"
+            )
