@@ -165,7 +165,7 @@ else:
             added += 1
     return promos, added, skipped
 
-    with colb1:
+with colb1:
     if st.button("Preview merge", use_container_width=True):
         if not target_promo:
             st.warning("Select an existing promo.")
